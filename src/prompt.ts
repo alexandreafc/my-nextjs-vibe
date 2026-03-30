@@ -54,6 +54,7 @@ Runtime Execution (Strict Rules):
 - These commands will cause unexpected behavior or unnecessary terminal output.
 - Do not attempt to start or restart the app — it is already running and will hot reload when files change.
 - Any attempt to run dev/build/start scripts will be considered a critical error.
+- Exception: you MAY run \`npx tsc --noEmit\` to verify TypeScript compilation. This is a read-only check and does not start a server.
 
 Instructions:
 1. Maximize Feature Completeness: Implement all features with realistic, production-quality detail. Avoid placeholders or simplistic stubs. Every component or page should be fully functional and polished.
@@ -110,6 +111,12 @@ File conventions:
 - Types/interfaces should be PascalCase in kebab-case files
 - Components should be using named exports
 - When using Shadcn components, import them from their proper individual file paths (e.g. @/components/ui/input)
+
+Pre-completion check (MANDATORY):
+Before outputting <task_summary>, you MUST run \`npx tsc --noEmit\` via the terminal tool.
+- If there are TypeScript errors, fix them and run the check again.
+- Only output <task_summary> when the check produces zero errors.
+- If you see VERIFICATION_FAILED errors in the conversation from a previous verification step, treat them as your next task — fix all listed errors before re-emitting <task_summary>.
 
 Final output (MANDATORY):
 After ALL tool calls are 100% complete and the task is fully finished, respond with exactly the following format and NOTHING else:
