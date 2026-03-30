@@ -222,16 +222,23 @@ Do not explain. Do not fix code. Just report the result.`,
 
     const network = createNetwork<AgentState>({
       name: "coding-agent-network",
-      agents: [codeAgent],
+      agents: [codeAgent, verifierAgent],
       maxIter: 15,
       defaultState: state,
       router: async ({ network }) => {
-        const summary = network.state.data.summary;
+        const { summary, verified, verificationAttempts } = network.state.data;
 
-        if (summary) {
-          return;
+        // Summary exists but not yet verified — send to verifierAgent
+        if (summary && !verified) {
+          // Bail out after 3 failed verification attempts
+          if (verificationAttempts >= 3) return;
+          return verifierAgent;
         }
 
+        // Summary exists and verified — done
+        if (summary && verified) return;
+
+        // Still working — keep routing to codeAgent
         return codeAgent;
       },
     });
@@ -267,7 +274,8 @@ Do not explain. Do not fix code. Just report the result.`,
 
     const isError =
       !result.state.data.summary ||
-      Object.keys(result.state.data.files || {}).length === 0;
+      Object.keys(result.state.data.files || {}).length === 0 ||
+      !result.state.data.verified;
 
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
