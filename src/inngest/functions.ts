@@ -75,6 +75,7 @@ export const codeAgentFunction = inngest.createFunction(
           try {
             const sandbox = await getSandbox(sandboxId);
             const result = await sandbox.commands.run(command, {
+              timeoutMs: 0,
               onStdout: (data: string) => {
                 buffers.stdout += data;
               },
