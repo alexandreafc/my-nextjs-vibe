@@ -180,6 +180,46 @@ export const codeAgentFunction = inngest.createFunction(
       },
     });
 
+    const verifierAgent = createAgent<AgentState>({
+      name: "verifier-agent",
+      description: "Verifies TypeScript compilation after code changes",
+      system: `You are a verification agent. Your ONLY job is to check for TypeScript errors.
+
+1. Run: npx tsc --noEmit 2>&1
+2. If there are NO errors → respond with exactly: VERIFICATION_OK
+3. If there ARE errors → respond with exactly: VERIFICATION_FAILED
+   followed by the full error output.
+
+Do not explain. Do not fix code. Just report the result.`,
+      model: openai({
+        model: process.env.OPENAI_MODEL || "gpt-4.1",
+        baseUrl: process.env.OPENAI_BASE_URL,
+        defaultParameters: {
+          temperature: 0,
+        },
+      }),
+      tools: [terminalTool],
+      lifecycle: {
+        onResponse: async ({ result, network }) => {
+          const content = lastAssistantTextMessageContent(result);
+
+          if (network) {
+            network.state.data.verificationAttempts += 1;
+
+            if (content?.includes("VERIFICATION_OK")) {
+              network.state.data.verified = true;
+            } else {
+              // Clear summary so the router routes back to codeAgent.
+              // The error output stays in message history for codeAgent to read.
+              network.state.data.summary = "";
+            }
+          }
+
+          return result;
+        },
+      },
+    });
+
     const network = createNetwork<AgentState>({
       name: "coding-agent-network",
       agents: [codeAgent],
