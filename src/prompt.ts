@@ -113,10 +113,8 @@ File conventions:
 - When using Shadcn components, import them from their proper individual file paths (e.g. @/components/ui/input)
 
 Pre-completion check (MANDATORY):
-Before outputting <task_summary>, you MUST run \`npx tsc --noEmit\` via the terminal tool.
-- If there are TypeScript errors, fix them and run the check again.
-- Only output <task_summary> when the check produces zero errors.
-- If you see VERIFICATION_FAILED errors in the conversation from a previous verification step, treat them as your next task — fix all listed errors before re-emitting <task_summary>.
+Before outputting <task_summary>, verify the dev server is still running by checking that \`http://localhost:3000\` responds.
+- If you see VERIFICATION_FAILED in the conversation, the dev server went down — check your last file changes for errors and fix them before re-emitting <task_summary>.
 
 Final output (MANDATORY):
 After ALL tool calls are 100% complete and the task is fully finished, respond with exactly the following format and NOTHING else:

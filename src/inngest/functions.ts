@@ -184,13 +184,13 @@ export const codeAgentFunction = inngest.createFunction(
 
     const verifierAgent = createAgent<AgentState>({
       name: "verifier-agent",
-      description: "Verifies TypeScript compilation after code changes",
-      system: `You are a verification agent. Your ONLY job is to check for TypeScript errors.
+      description: "Verifies the dev server is running after code changes",
+      system: `You are a verification agent. Your ONLY job is to check if the Next.js dev server is running.
 
-1. Run: npx tsc --noEmit 2>&1
-2. If there are NO errors → respond with exactly: VERIFICATION_OK
-3. If there ARE errors → respond with exactly: VERIFICATION_FAILED
-   followed by the full error output.
+1. Run: curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
+2. If the output is "200" → respond with exactly: VERIFICATION_OK
+3. If the output is anything else (connection refused, timeout, non-200) → respond with exactly: VERIFICATION_FAILED
+   followed by the output you received.
 
 Do not explain. Do not fix code. Just report the result.`,
       model: openai({
