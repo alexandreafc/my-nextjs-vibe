@@ -82,7 +82,8 @@ export const codeAgentFunction = inngest.createFunction(
                 buffers.stderr += data;
               }
             });
-            return result.stdout;
+            const combined = [result.stdout, buffers.stderr].filter(Boolean).join("\n");
+            return combined;
           } catch (e) {
             console.error(
               `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderror: ${buffers.stderr}`,
@@ -228,12 +229,11 @@ Do not explain. Do not fix code. Just report the result.`,
       router: async ({ network }) => {
         const { summary, verified, verificationAttempts } = network.state.data;
 
+        // Hard bail-out after 3 failed verification attempts
+        if (!verified && verificationAttempts >= 3) return;
+
         // Summary exists but not yet verified — send to verifierAgent
-        if (summary && !verified) {
-          // Bail out after 3 failed verification attempts
-          if (verificationAttempts >= 3) return;
-          return verifierAgent;
-        }
+        if (summary && !verified) return verifierAgent;
 
         // Summary exists and verified — done
         if (summary && verified) return;
