@@ -62,6 +62,37 @@ export const codeAgentFunction = inngest.createFunction(
       },
     );
 
+    const terminalTool = createTool({
+      name: "terminal",
+      description: "Use the terminal to run commands",
+      parameters: z.object({
+        command: z.string(),
+      }),
+      handler: async ({ command }, { step }) => {
+        return await step?.run("terminal", async () => {
+          const buffers = { stdout: "", stderr: "" };
+
+          try {
+            const sandbox = await getSandbox(sandboxId);
+            const result = await sandbox.commands.run(command, {
+              onStdout: (data: string) => {
+                buffers.stdout += data;
+              },
+              onStderr: (data: string) => {
+                buffers.stderr += data;
+              }
+            });
+            return result.stdout;
+          } catch (e) {
+            console.error(
+              `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderror: ${buffers.stderr}`,
+            );
+            return `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
+          }
+        });
+      },
+    });
+
     const codeAgent = createAgent<AgentState>({
       name: "code-agent",
       description: "An expert coding agent",
@@ -74,36 +105,7 @@ export const codeAgentFunction = inngest.createFunction(
         },
       }),
       tools: [
-        createTool({
-          name: "terminal",
-          description: "Use the terminal to run commands",
-          parameters: z.object({
-            command: z.string(),
-          }),
-          handler: async ({ command }, { step }) => {
-            return await step?.run("terminal", async () => {
-              const buffers = { stdout: "", stderr: "" };
-
-              try {
-                const sandbox = await getSandbox(sandboxId);
-                const result = await sandbox.commands.run(command, {
-                  onStdout: (data: string) => {
-                    buffers.stdout += data;
-                  },
-                  onStderr: (data: string) => {
-                    buffers.stderr += data;
-                  }
-                });
-                return result.stdout;
-              } catch (e) {
-                console.error(
-                  `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderror: ${buffers.stderr}`,
-                );
-                return `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
-              }
-            });
-          },
-        }),
+        terminalTool,
         createTool({
           name: "createOrUpdateFiles",
           description: "Create or update files in the sandbox",
