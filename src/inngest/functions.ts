@@ -67,7 +67,7 @@ export const codeAgentFunction = inngest.createFunction(
       description: "An expert coding agent",
       system: PROMPT,
       model: openai({
-        model: process.env.OPENAI_MODEL || "gpt-5.4",
+        model: process.env.OPENAI_MODEL || "gpt-4.1",
         baseUrl: process.env.OPENAI_BASE_URL,
         defaultParameters: {
           temperature: 0.1,
@@ -201,7 +201,7 @@ export const codeAgentFunction = inngest.createFunction(
       description: "A fragment title generator",
       system: FRAGMENT_TITLE_PROMPT,
       model: openai({
-        model: process.env.OPENAI_MODEL_MINI || "gpt-5.4-mini",
+        model: process.env.OPENAI_MODEL_MINI || "gpt-4o",
         baseUrl: process.env.OPENAI_BASE_URL,
       }),
     })
@@ -211,7 +211,7 @@ export const codeAgentFunction = inngest.createFunction(
       description: "A response generator",
       system: RESPONSE_PROMPT,
       model: openai({
-        model: process.env.OPENAI_MODEL_MINI || "gpt-5.4-mini",
+        model: process.env.OPENAI_MODEL_MINI || "gpt-4o",
         baseUrl: process.env.OPENAI_BASE_URL,
       }),
     });
