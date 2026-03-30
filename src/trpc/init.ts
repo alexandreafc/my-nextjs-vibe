@@ -3,7 +3,8 @@ import { initTRPC, TRPCError } from '@trpc/server';
 import { cache } from 'react';
 import superjson from "superjson";
 export const createTRPCContext = cache(async () => {
-  return { auth: await auth() };
+  const authData = await auth();
+  return { auth: authData };
 });
 export type Context = Awaited<ReturnType<typeof createTRPCContext>>;
 // Avoid exporting the entire t-object

@@ -49,7 +49,7 @@ export const ProjectForm = () => {
     onError: (error) => {
       toast.error(error.message);
       
-      if (error.data?.code === "UNAUTHORIZED") {
+      if (error.data?.code === "UNAUTHORIZED" && !clerk.user) {
         clerk.openSignIn();
       }
 

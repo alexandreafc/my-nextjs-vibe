@@ -12,7 +12,10 @@ import { Button } from "@/components/ui/button";
 export const ProjectsList = () => {
   const trpc = useTRPC();
   const { user } = useUser();
-  const { data: projects } = useQuery(trpc.projects.getMany.queryOptions());
+  const { data: projects } = useQuery({
+    ...trpc.projects.getMany.queryOptions(),
+    enabled: !!user,
+  });
 
   if (!user) return null;
 

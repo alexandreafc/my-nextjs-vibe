@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { dark } from "@clerk/themes";
 import { PricingTable } from "@clerk/nextjs";
+import { ErrorBoundary } from "react-error-boundary";
 
 import { useCurrentTheme } from "@/hooks/use-current-theme";
 
@@ -25,14 +26,22 @@ const Page = () => {
         <p className="text-muted-foreground text-center text-sm md:text-base">
           Choose the plan that fits your needs
         </p>
-        <PricingTable
-          appearance={{
-            baseTheme: currentTheme === "dark" ? dark : undefined,
-            elements: {
-              pricingTableCard: "border! shadow-none! rounded-lg!"
-            }
-          }}
-        />
+        <ErrorBoundary
+          fallback={
+            <p className="text-center text-muted-foreground text-sm py-8">
+              Pricing plans are not available right now.
+            </p>
+          }
+        >
+          <PricingTable
+            appearance={{
+              baseTheme: currentTheme === "dark" ? dark : undefined,
+              elements: {
+                pricingTableCard: "border! shadow-none! rounded-lg!"
+              }
+            }}
+          />
+        </ErrorBoundary>
       </section>
     </div>
    );

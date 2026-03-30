@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --turbopack",
+    "dev": "NODE_OPTIONS='--localstorage-file=.next/localstorage.db' next dev --turbopack -p 4000",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -51,6 +51,8 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.3.1",
+    "e2b": "^2.18.0",
     "embla-carousel-react": "^8.6.0",
     "inngest": "^3.39.2",
     "input-otp": "^1.4.2",

@@ -1,0 +1,14 @@
+import { config } from 'dotenv'
+import { resolve } from 'path'
+config({ path: resolve(__dirname, '../../.env.local') })
+
+import { Template, defaultBuildLogger } from 'e2b'
+import { template } from './template'
+
+async function main() {
+  await Template.build(template, 'start1-nextjs-dev', {
+    onBuildLogs: defaultBuildLogger(),
+  });
+}
+
+main().catch(console.error);
