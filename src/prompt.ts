@@ -113,8 +113,10 @@ File conventions:
 - When using Shadcn components, import them from their proper individual file paths (e.g. @/components/ui/input)
 
 Pre-completion check (MANDATORY):
-Before outputting <task_summary>, verify the dev server is still running by checking that \`http://localhost:3000\` responds.
-- If you see VERIFICATION_FAILED in the conversation, the dev server went down — check your last file changes for errors and fix them before re-emitting <task_summary>.
+Before outputting <task_summary>, you MUST do both steps in order:
+1. Run \`npx tsc --noEmit\` via the terminal tool to check for TypeScript errors. Fix ALL TypeScript errors before proceeding — do not skip this step.
+2. The verifier agent will check that \`http://localhost:3000\` responds with 200.
+- If you see VERIFICATION_FAILED, read the error output carefully — it contains the actual Next.js error message and stack trace. Fix the specific error shown before re-emitting <task_summary>.
 
 Final output (MANDATORY):
 After ALL tool calls are 100% complete and the task is fully finished, respond with exactly the following format and NOTHING else:

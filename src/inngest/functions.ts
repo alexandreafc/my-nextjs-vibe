@@ -209,12 +209,13 @@ export const codeAgentFunction = inngest.createFunction(
       description: "Verifies the dev server is running after code changes",
       system: `You are a verification agent. Your ONLY job is to check if the Next.js dev server is running.
 
-1. Run: curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
-2. If the output is "200" → respond with exactly: VERIFICATION_OK
-3. If the output is anything else (connection refused, timeout, non-200) → respond with exactly: VERIFICATION_FAILED
-   followed by the output you received.
+1. Run: curl -s -w "\\n---HTTP_STATUS:%{http_code}---" http://localhost:3000 2>&1 | head -c 2000
+2. If the output contains ---HTTP_STATUS:200--- → respond with exactly: VERIFICATION_OK
+3. If the output contains anything else (---HTTP_STATUS:500---, connection refused, timeout) → respond with: VERIFICATION_FAILED
+   followed by the FULL output you received, including any error message or stack trace from the response body.
+   This error text will be used by the code agent to diagnose and fix the issue.
 
-Do not explain. Do not fix code. Just report the result.`,
+Do not explain. Do not fix code. Just report the result and include the full output on failure.`,
       model: openai({
         model: process.env.OPENAI_MODEL || "gpt-4.1",
         baseUrl: process.env.OPENAI_BASE_URL,
