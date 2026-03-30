@@ -21,8 +21,30 @@ export const codeAgentFunction = inngest.createFunction(
   { event: "code-agent/run" },
   async ({ event, step }) => {
     const sandboxId = await step.run("get-sandbox-id", async () => {
+      const project = await prisma.project.findUnique({
+        where: { id: event.data.projectId },
+      });
+
+      if (project?.sandboxId) {
+        const isRunning = await Sandbox.list().then((sandboxes) =>
+          sandboxes.some((s) => s.sandboxId === project.sandboxId)
+        );
+
+        if (isRunning) {
+          const sandbox = await getSandbox(project.sandboxId);
+          await sandbox.setTimeout(SANDBOX_TIMEOUT);
+          return project.sandboxId;
+        }
+      }
+
       const sandbox = await Sandbox.create("start1-nextjs-dev");
       await sandbox.setTimeout(SANDBOX_TIMEOUT);
+
+      await prisma.project.update({
+        where: { id: event.data.projectId },
+        data: { sandboxId: sandbox.sandboxId },
+      });
+
       return sandbox.sandboxId;
     });
 
