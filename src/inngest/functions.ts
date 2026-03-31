@@ -198,9 +198,14 @@ export const codeAgentFunction = inngest.createFunction(
           const lastAssistantMessageText =
             lastAssistantTextMessageContent(result);
 
+          console.log("[code-agent] onResponse - has text:", !!lastAssistantMessageText);
+          console.log("[code-agent] onResponse - text (first 300 chars):", lastAssistantMessageText?.substring(0, 300) || "(empty)");
+          console.log("[code-agent] onResponse - has <task_summary>:", lastAssistantMessageText?.includes("<task_summary>") || false);
+
           if (lastAssistantMessageText && network) {
             if (lastAssistantMessageText.includes("<task_summary>")) {
               network.state.data.summary = lastAssistantMessageText;
+              console.log("[code-agent] Summary captured!");
             }
           }
 
@@ -233,14 +238,16 @@ Do not explain. Do not fix code. Just report the result and include the full out
         onResponse: async ({ result, network }) => {
           const content = lastAssistantTextMessageContent(result);
 
+          console.log("[verifier] onResponse - content (first 300 chars):", content?.substring(0, 300) || "(empty)");
+
           if (network) {
             network.state.data.verificationAttempts += 1;
 
             if (content?.includes("VERIFICATION_OK")) {
               network.state.data.verified = true;
+              console.log("[verifier] VERIFICATION_OK — verified = true");
             } else {
-              // Clear summary so the router routes back to codeAgent.
-              // The error output stays in message history for codeAgent to read.
+              console.log("[verifier] VERIFICATION_FAILED — clearing summary, attempt:", network.state.data.verificationAttempts);
               network.state.data.summary = "";
             }
           }
@@ -258,16 +265,28 @@ Do not explain. Do not fix code. Just report the result and include the full out
       router: async ({ network }) => {
         const { summary, verified, verificationAttempts } = network.state.data;
 
+        console.log("[router] state:", { hasSummary: !!summary, verified, verificationAttempts });
+
         // Hard bail-out after 3 failed verification attempts
-        if (!verified && verificationAttempts >= 3) return;
+        if (!verified && verificationAttempts >= 3) {
+          console.log("[router] BAIL OUT — 3 failed verification attempts");
+          return;
+        }
 
         // Summary exists but not yet verified — send to verifierAgent
-        if (summary && !verified) return verifierAgent;
+        if (summary && !verified) {
+          console.log("[router] → verifierAgent");
+          return verifierAgent;
+        }
 
         // Summary exists and verified — done
-        if (summary && verified) return;
+        if (summary && verified) {
+          console.log("[router] DONE — summary + verified");
+          return;
+        }
 
         // Still working — keep routing to codeAgent
+        console.log("[router] → codeAgent");
         return codeAgent;
       },
     });
@@ -301,10 +320,32 @@ Do not explain. Do not fix code. Just report the result and include the full out
       output: responseOutput
     } = await responseGenerator.run(result.state.data.summary);
 
+    const hasSummary = !!result.state.data.summary;
+    const fileCount = Object.keys(result.state.data.files || {}).length;
+    const isVerified = result.state.data.verified;
+    const verificationAttempts = result.state.data.verificationAttempts;
+
+    console.log("[code-agent] === RESULT DIAGNOSTICS ===");
+    console.log("[code-agent] hasSummary:", hasSummary);
+    console.log("[code-agent] summary (first 200 chars):", result.state.data.summary?.substring(0, 200) || "(empty)");
+    console.log("[code-agent] fileCount:", fileCount);
+    console.log("[code-agent] files:", Object.keys(result.state.data.files || {}));
+    console.log("[code-agent] isVerified:", isVerified);
+    console.log("[code-agent] verificationAttempts:", verificationAttempts);
+
     const isError =
-      !result.state.data.summary ||
-      Object.keys(result.state.data.files || {}).length === 0 ||
-      !result.state.data.verified;
+      !hasSummary ||
+      fileCount === 0 ||
+      !isVerified;
+
+    console.log("[code-agent] isError:", isError);
+    if (isError) {
+      console.log("[code-agent] ERROR REASONS:", {
+        noSummary: !hasSummary,
+        noFiles: fileCount === 0,
+        notVerified: !isVerified,
+      });
+    }
 
     const sandboxDiagnostics = await step.run("sandbox-diagnostics", async () => {
       const sandbox = await getSandbox(sandboxId);
