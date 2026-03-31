@@ -85,6 +85,44 @@ export const codeAgentFunction = inngest.createFunction(
       return { sandboxId: sandbox.sandboxId, sandboxStatus: "created" as const };
     });
 
+    await step.run("start-log-tail", async () => {
+      try {
+        const sandbox = await getSandbox(sandboxId);
+        await sandbox.commands.run(
+          "tail -f /tmp/nextjs-dev.log 2>/dev/null",
+          {
+            background: true,
+            timeoutMs: 0,
+            onStdout: (data: string) => {
+              const line = data.trim();
+              if (!line) return;
+
+              let level: "info" | "warn" | "error" = "info";
+              if (line.includes("warn") || line.includes("Warning")) level = "warn";
+              if (line.includes("error") || line.includes("Error") || line.includes("ERR")) level = "error";
+
+              publishLog(event.data.projectId, {
+                source: "server",
+                level,
+                content: line,
+              }, logBuffer);
+            },
+            onStderr: (data: string) => {
+              const line = data.trim();
+              if (!line) return;
+              publishLog(event.data.projectId, {
+                source: "server",
+                level: "error",
+                content: line,
+              }, logBuffer);
+            },
+          }
+        );
+      } catch {
+        // Dev server log not available yet — non-critical
+      }
+    });
+
     const previousMessages = await step.run("get-previous-messages", async () => {
       const formattedMessages: Message[] = [];
 
