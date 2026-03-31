@@ -90,7 +90,7 @@ export function LogViewer({ logs, variant = "server" }: Props) {
             {formatTime(log.timestamp)}
           </span>
 
-          {variant === "agent" && log.metadata?.type && (
+          {variant === "agent" && !!(log.metadata?.type) && (
             <span
               className={cn(
                 "shrink-0 rounded px-1 text-[10px] font-medium uppercase",
@@ -122,7 +122,7 @@ export function LogViewer({ logs, variant = "server" }: Props) {
             {log.content ?? log.args?.join(" ") ?? ""}
           </span>
 
-          {variant === "agent" && log.metadata?.files && (
+          {variant === "agent" && !!(log.metadata?.files) && (
             <span className="text-muted-foreground text-[10px]">
               {(log.metadata.files as string[]).join(", ")}
             </span>

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useAuth } from "@clerk/nextjs";
 import { Suspense, useState } from "react";
-import { EyeIcon, CodeIcon, CrownIcon } from "lucide-react";
+import { EyeIcon, CodeIcon, CrownIcon, TerminalSquareIcon } from "lucide-react";
 
 import { Fragment } from "@/generated/prisma";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/resizable";
 
 import { FragmentWeb } from "../components/fragment-web";
+import { LogsPanel } from "../components/logs-panel";
 import { ProjectHeader } from "../components/project-header";
 import { MessagesContainer } from "../components/messages-container";
 import { ErrorBoundary } from "react-error-boundary";
@@ -30,7 +31,7 @@ export const ProjectView = ({ projectId }: Props) => {
   const hasProAccess = has?.({ plan: "pro" });
 
   const [activeFragment, setActiveFragment] = useState<Fragment | null>(null);
-  const [tabState, setTabState] = useState<"preview" | "code">("preview");
+  const [tabState, setTabState] = useState<"preview" | "code" | "logs">("preview");
 
   return (
     <div className="h-screen">
@@ -64,7 +65,7 @@ export const ProjectView = ({ projectId }: Props) => {
             className="h-full gap-y-0"
             defaultValue="preview"
             value={tabState}
-            onValueChange={(value) => setTabState(value as "preview" | "code")}
+            onValueChange={(value) => setTabState(value as "preview" | "code" | "logs")}
           >
             <div className="w-full flex items-center p-2 border-b gap-x-2">
               <TabsList className="h-8 p-0 border rounded-md">
@@ -73,6 +74,9 @@ export const ProjectView = ({ projectId }: Props) => {
                 </TabsTrigger>
                 <TabsTrigger value="code" className="rounded-md">
                   <CodeIcon /> <span>Code</span>
+                </TabsTrigger>
+                <TabsTrigger value="logs" className="rounded-md">
+                  <TerminalSquareIcon /> <span>Logs</span>
                 </TabsTrigger>
               </TabsList>
               <div className="ml-auto flex items-center gap-x-2">
@@ -95,6 +99,9 @@ export const ProjectView = ({ projectId }: Props) => {
                   files={activeFragment.files as { [path: string]: string }}
                 />
               )}
+            </TabsContent>
+            <TabsContent value="logs" className="min-h-0">
+              <LogsPanel projectId={projectId} />
             </TabsContent>
           </Tabs>
         </ResizablePanel>
