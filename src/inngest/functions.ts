@@ -20,7 +20,7 @@ export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
-    const sandboxId = await step.run("get-sandbox-id", async () => {
+    const { sandboxId, sandboxStatus } = await step.run("get-sandbox-id", async () => {
       const project = await prisma.project.findUnique({
         where: { id: event.data.projectId },
       });
@@ -33,19 +33,26 @@ export const codeAgentFunction = inngest.createFunction(
         if (isRunning) {
           const sandbox = await getSandbox(project.sandboxId);
           await sandbox.setTimeout(SANDBOX_TIMEOUT);
-          return project.sandboxId;
+          return { sandboxId: project.sandboxId, sandboxStatus: "reused" as const };
         }
+
+        // Was stored but not running anymore
+        const sandbox = await Sandbox.create("start1-nextjs-dev");
+        await sandbox.setTimeout(SANDBOX_TIMEOUT);
+        await prisma.project.update({
+          where: { id: event.data.projectId },
+          data: { sandboxId: sandbox.sandboxId },
+        });
+        return { sandboxId: sandbox.sandboxId, sandboxStatus: "replaced" as const };
       }
 
       const sandbox = await Sandbox.create("start1-nextjs-dev");
       await sandbox.setTimeout(SANDBOX_TIMEOUT);
-
       await prisma.project.update({
         where: { id: event.data.projectId },
         data: { sandboxId: sandbox.sandboxId },
       });
-
-      return sandbox.sandboxId;
+      return { sandboxId: sandbox.sandboxId, sandboxStatus: "created" as const };
     });
 
     const previousMessages = await step.run("get-previous-messages", async () => {
@@ -108,9 +115,7 @@ export const codeAgentFunction = inngest.createFunction(
             const combined = [result.stdout, buffers.stderr].filter(Boolean).join("\n");
             return combined;
           } catch (e) {
-            console.error(
-              `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderror: ${buffers.stderr}`,
-            );
+            console.error(`Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`);
             return `Command failed: ${e} \nstdout: ${buffers.stdout}\nstderr: ${buffers.stderr}`;
           }
         });
@@ -301,6 +306,40 @@ Do not explain. Do not fix code. Just report the result and include the full out
       Object.keys(result.state.data.files || {}).length === 0 ||
       !result.state.data.verified;
 
+    const sandboxDiagnostics = await step.run("sandbox-diagnostics", async () => {
+      const sandbox = await getSandbox(sandboxId);
+      const diagCmd = [
+        'ps aux | grep -E "next|node" | grep -v grep || echo "NO_NEXT_PROCESS"',
+        'ss -tlnp 2>/dev/null | grep 3000 || echo "PORT_3000_NOT_LISTENING"',
+        'curl -s -w "\\n---STATUS:%{http_code}---" http://localhost:3000 2>&1 | head -c 800',
+        'tail -n 40 /tmp/nextjs-dev.log 2>/dev/null || echo "NO_LOG_FILE"',
+      ].join('\necho "---"\n');
+
+      try {
+        const diag = await sandbox.commands.run(diagCmd, { timeoutMs: 15000 });
+        return {
+          sandboxId,
+          sandboxStatus,
+          agentVerified: result.state.data.verified,
+          agentVerificationAttempts: result.state.data.verificationAttempts,
+          agentFileCount: Object.keys(result.state.data.files || {}).length,
+          agentHasSummary: !!result.state.data.summary,
+          output: diag.stdout,
+          stderr: diag.stderr || null,
+        };
+      } catch (e) {
+        return {
+          sandboxId,
+          sandboxStatus,
+          agentVerified: result.state.data.verified,
+          agentVerificationAttempts: result.state.data.verificationAttempts,
+          agentFileCount: Object.keys(result.state.data.files || {}).length,
+          agentHasSummary: !!result.state.data.summary,
+          error: String(e),
+        };
+      }
+    });
+
     const sandboxUrl = await step.run("get-sandbox-url", async () => {
       const sandbox = await getSandbox(sandboxId);
       const host = sandbox.getHost(3000);
@@ -336,11 +375,16 @@ Do not explain. Do not fix code. Just report the result and include the full out
       })
     });
 
-    return { 
+    return {
       url: sandboxUrl,
-      title: "Fragment",
-      files: result.state.data.files,
-      summary: result.state.data.summary,
+      sandboxId,
+      sandboxStatus,
+      isError,
+      verified: result.state.data.verified,
+      verificationAttempts: result.state.data.verificationAttempts,
+      fileCount: Object.keys(result.state.data.files || {}).length,
+      files: Object.keys(result.state.data.files || {}),
+      diagnostics: sandboxDiagnostics,
     };
   },
 );

@@ -43,18 +43,27 @@ File Safety Rules:
 - ALWAYS add "use client" to the TOP, THE FIRST LINE of app/page.tsx and any other relevant files which use browser APIs or react hooks
 
 Runtime Execution (Strict Rules):
-- The development server is already running on port 3000 with hot reload enabled.
+- The development server should be running on port 3000 with hot reload enabled.
 - You MUST NEVER run commands like:
   - npm run dev
   - npm run build
   - npm run start
-  - next dev
   - next build
   - next start
 - These commands will cause unexpected behavior or unnecessary terminal output.
-- Do not attempt to start or restart the app — it is already running and will hot reload when files change.
-- Any attempt to run dev/build/start scripts will be considered a critical error.
-- Exception: you MAY run \`npx tsc --noEmit\` to verify TypeScript compilation. This is a read-only check and does not start a server.
+- Any attempt to run build/start scripts will be considered a critical error.
+- Exception 1: you MAY run \`npx tsc --noEmit\` to verify TypeScript compilation. This is a read-only check and does not start a server.
+- Exception 2: if the dev server is NOT running (curl to http://localhost:3000 returns connection refused or nothing), you MUST restart it with exactly this command and wait for it to be ready:
+  \`\`\`
+  NODE_OPTIONS="--max-old-space-size=1536" npx next dev --turbopack -H 0.0.0.0 > /tmp/nextjs-dev.log 2>&1 &
+  sleep 15 && curl -s -o /dev/null -w "%{http_code}" http://localhost:3000
+  \`\`\`
+  Do not run this if the server is already responding on port 3000.
+
+Server health check (run this FIRST before any file changes):
+- Before starting work, verify the server is up: \`curl -s -o /dev/null -w "%{http_code}" http://localhost:3000\`
+- If it returns 200: proceed normally.
+- If it returns anything else or times out: restart the server using Exception 2 above, then continue.
 
 Instructions:
 1. Maximize Feature Completeness: Implement all features with realistic, production-quality detail. Avoid placeholders or simplistic stubs. Every component or page should be fully functional and polished.

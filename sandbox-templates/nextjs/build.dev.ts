@@ -7,6 +7,7 @@ import { template } from './template'
 
 async function main() {
   await Template.build(template, 'start1-nextjs-dev', {
+    memoryMB: 2048,
     onBuildLogs: defaultBuildLogger(),
   });
 }

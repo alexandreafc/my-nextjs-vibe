@@ -47,3 +47,6 @@ next-env.d.ts
 
 # inngest local dev database (can include secrets)
 /.inngest/
+
+# superpowers brainstorming sessions
+.superpowers/
