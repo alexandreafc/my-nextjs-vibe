@@ -1,13 +1,41 @@
 import { z } from "zod";
+import { randomUUID } from "crypto";
 import { Sandbox } from "@e2b/code-interpreter";
 import { openai, createAgent, createTool, createNetwork, type Tool, type Message, createState } from "@inngest/agent-kit";
 
 import { prisma } from "@/lib/db";
+import { Prisma } from "@/generated/prisma";
+import { redisPublisher } from "@/lib/redis";
 import { FRAGMENT_TITLE_PROMPT, PROMPT, RESPONSE_PROMPT } from "@/prompt";
 
 import { inngest } from "./client";
 import { SANDBOX_TIMEOUT } from "./types";
 import { getSandbox, lastAssistantTextMessageContent, parseAgentOutput } from "./utils";
+
+interface LogEntry {
+  id: string;
+  source: "server" | "agent";
+  level: "info" | "warn" | "error" | "debug";
+  content: string;
+  metadata?: Record<string, unknown> | null;
+  timestamp: string;
+}
+
+function publishLog(
+  projectId: string,
+  entry: Omit<LogEntry, "id" | "timestamp">,
+  buffer: LogEntry[]
+): void {
+  const log: LogEntry = {
+    id: randomUUID(),
+    ...entry,
+    timestamp: new Date().toISOString(),
+  };
+  buffer.push(log);
+  redisPublisher
+    .publish(`logs:${projectId}`, JSON.stringify(log))
+    .catch(() => {});
+}
 
 interface AgentState {
   summary: string;
@@ -20,6 +48,8 @@ export const codeAgentFunction = inngest.createFunction(
   { id: "code-agent" },
   { event: "code-agent/run" },
   async ({ event, step }) => {
+    const logBuffer: LogEntry[] = [];
+
     const { sandboxId, sandboxStatus } = await step.run("get-sandbox-id", async () => {
       const project = await prisma.project.findUnique({
         where: { id: event.data.projectId },
@@ -107,9 +137,21 @@ export const codeAgentFunction = inngest.createFunction(
               timeoutMs: 0,
               onStdout: (data: string) => {
                 buffers.stdout += data;
+                publishLog(event.data.projectId, {
+                  source: "agent",
+                  level: "info",
+                  content: data,
+                  metadata: { type: "cmd", cmd: command },
+                }, logBuffer);
               },
               onStderr: (data: string) => {
                 buffers.stderr += data;
+                publishLog(event.data.projectId, {
+                  source: "agent",
+                  level: "error",
+                  content: data,
+                  metadata: { type: "cmd", cmd: command },
+                }, logBuffer);
               }
             });
             const combined = [result.stdout, buffers.stderr].filter(Boolean).join("\n");
@@ -159,6 +201,16 @@ export const codeAgentFunction = inngest.createFunction(
                   updatedFiles[file.path] = file.content;
                 }
 
+                publishLog(event.data.projectId, {
+                  source: "agent",
+                  level: "info",
+                  content: `createOrUpdateFiles`,
+                  metadata: {
+                    type: "tool",
+                    files: files.map((f) => f.path),
+                  },
+                }, logBuffer);
+
                 return updatedFiles;
               } catch (e) {
                 return "Error: " + e;
@@ -185,6 +237,17 @@ export const codeAgentFunction = inngest.createFunction(
                   const content = await sandbox.files.read(file);
                   contents.push({ path: file, content });
                 }
+
+                publishLog(event.data.projectId, {
+                  source: "agent",
+                  level: "info",
+                  content: `readFiles`,
+                  metadata: {
+                    type: "tool",
+                    files,
+                  },
+                }, logBuffer);
+
                 return JSON.stringify(contents);
               } catch (e) {
                 return "Error: " + e;
@@ -293,6 +356,18 @@ Do not explain. Do not fix code. Just report the result and include the full out
 
     const result = await network.run(event.data.value, { state });
 
+    publishLog(event.data.projectId, {
+      source: "agent",
+      level: "info",
+      content: "Agent completed",
+      metadata: {
+        type: "lifecycle",
+        verified: result.state.data.verified,
+        verificationAttempts: result.state.data.verificationAttempts,
+        fileCount: Object.keys(result.state.data.files || {}).length,
+      },
+    }, logBuffer);
+
     const fragmentTitleGenerator = createAgent({
       name: "fragment-title-generator",
       description: "A fragment title generator",
@@ -388,8 +463,10 @@ Do not explain. Do not fix code. Just report the result and include the full out
     });
 
     await step.run("save-result", async () => {
+      let message;
+
       if (isError) {
-        return await prisma.message.create({
+        message = await prisma.message.create({
           data: {
             projectId: event.data.projectId,
             content: "Something went wrong. Please try again.",
@@ -397,23 +474,44 @@ Do not explain. Do not fix code. Just report the result and include the full out
             type: "ERROR",
           },
         });
-      }
-
-      return await prisma.message.create({
-        data: {
-          projectId: event.data.projectId,
-          content: parseAgentOutput(responseOutput),
-          role: "ASSISTANT",
-          type: "RESULT",
-          fragment: {
-            create: {
-              sandboxUrl: sandboxUrl,
-              title: parseAgentOutput(fragmentTitleOuput),
-              files: result.state.data.files,
+      } else {
+        message = await prisma.message.create({
+          data: {
+            projectId: event.data.projectId,
+            content: parseAgentOutput(responseOutput),
+            role: "ASSISTANT",
+            type: "RESULT",
+            fragment: {
+              create: {
+                sandboxUrl: sandboxUrl,
+                title: parseAgentOutput(fragmentTitleOuput),
+                files: result.state.data.files,
+              },
             },
           },
-        },
-      })
+        });
+      }
+
+      // Persist last 100 log entries
+      const logsToSave = logBuffer.slice(-100);
+      if (logsToSave.length > 0) {
+        await prisma.log.createMany({
+          data: logsToSave.map((log) => ({
+            projectId: event.data.projectId,
+            messageId: message.id,
+            source: log.source === "server" ? "SERVER" as const : "AGENT" as const,
+            level: log.level === "info" ? "INFO" as const
+              : log.level === "warn" ? "WARN" as const
+              : log.level === "error" ? "ERROR" as const
+              : "DEBUG" as const,
+            content: log.content,
+            metadata: log.metadata as Prisma.InputJsonValue ?? Prisma.JsonNull,
+            timestamp: new Date(log.timestamp),
+          })),
+        });
+      }
+
+      return message;
     });
 
     return {
