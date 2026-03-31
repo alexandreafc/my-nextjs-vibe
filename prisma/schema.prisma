@@ -23,6 +23,7 @@ model Project {
   updatedAt DateTime @updatedAt
 
   messages Message[]
+  logs     Log[]
 }
 
 enum MessageRole {
@@ -33,6 +34,18 @@ enum MessageRole {
 enum MessageType {
   RESULT
   ERROR
+}
+
+enum LogSource {
+  SERVER
+  AGENT
+}
+
+enum LogLevel {
+  INFO
+  WARN
+  ERROR
+  DEBUG
 }
 
 model Message {
@@ -47,6 +60,7 @@ model Message {
   project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   fragment Fragment?
+  logs     Log[]
 }
 
 model Fragment {
@@ -66,4 +80,30 @@ model Usage {
   key String  @id
   points Int
   expire DateTime?
+}
+
+model User {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  email     String
+  isAdmin   Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Log {
+  id        String    @id @default(cuid())
+  projectId String
+  messageId String?
+  source    LogSource
+  level     LogLevel
+  content   String
+  metadata  Json?
+  timestamp DateTime  @default(now())
+
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  message   Message?  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([projectId, timestamp])
+  @@index([messageId])
 }
